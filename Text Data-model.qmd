@@ -1,0 +1,504 @@
+---
+title: "Final Project- Text Analysis"
+author: "Jingyi Yang"
+format: html
+editor: visual
+---
+
+# Preperation
+
+```{r}
+install.packages("devtools", repos = "http://cran.us.r-project.org")
+install.packages("tidytext", repos = "http://cran.us.r-project.org")
+install.packages("plyr", repos = "http://cran.us.r-project.org")
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+install.packages("quanteda", repos = "http://cran.us.r-project.org")
+install.packages("gsheet", repos = "http://cran.us.r-project.org")
+install.packages("quanteda.textplots", repos = "http://cran.us.r-project.org")
+install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+install.packages("formattable", repos = "http://cran.us.r-project.org")
+install.packages("tm", repos = "http://cran.us.r-project.org")
+install.packages("factoextra", repos = "http://cran.us.r-project.org")
+install.packages("stm",repos = "http://cran.us.r-project.org")
+install.packages("syuzhet",repos = "http://cran.us.r-project.org")
+# load libraries
+library(devtools)
+library(tidytext)
+library(plyr)
+library(tidyverse)
+library(quanteda)
+library(gsheet)
+library(quanteda.textplots)
+library(ggplot2)
+library(ggthemes)
+library(formattable)
+library(tm)
+library(factoextra)
+library(cluster)
+library(stm)
+library(syuzhet)
+```
+
+```{r}
+# reading the sheet data
+Text_Data <-gsheet2tbl("https://docs.google.com/spreadsheets/d/13ubweoyvzAnVpdq6AAV63sz_AeYrXxX-/edit?usp=sharing&ouid=109443244001542565539&rtpof=true&sd=true")
+print(Text_Data)
+nrow(Text_Data)
+```
+
+```{r}
+# convert to tibble, the tidyverse dataframe format
+Text_Data <- as_tibble(Text_Data)
+# inspect the data
+str(Text_Data)
+```
+
+```{r}
+Text_Data_Abstract<- Text_Data %>% select (Abstract)
+head(Text_Data_Abstract) # select Abstract from the dataset
+```
+
+# Pre-processing
+
+```{r}
+Text_Data_Abstract_corpus <- corpus(Text_Data_Abstract, text_field = "Abstract" , meta = list(source = "From a data.frame called mydf."))
+Text_Data_Abstract_summary <- summary(Text_Data_Abstract_corpus)
+head(Text_Data_Abstract_summary)
+```
+
+
+```{r}
+# the number of documents (articles) in text data
+ndoc(Text_Data_Abstract_corpus) # There are 802 documents in the text data.
+```
+
+
+
+```{r}
+# Drop punctuation as well as numbers
+Text_Data_Abstract_tokens <- tokens(Text_Data_Abstract_corpus,
+    remove_punct = T,
+    remove_numbers = T,
+    remove_symbols = T)
+print(Text_Data_Abstract_tokens)
+
+# Stemming
+Text_Data_Abstract_tokens <- tokens_wordstem(Text_Data_Abstract_tokens)
+
+# remove stopwords from our tokens object
+Text_Data_Abstract_tokens <- tokens_select(Text_Data_Abstract_tokens,
+                                           pattern = stopwords("en"),
+                                           selection = "remove")
+print(Text_Data_Abstract_tokens)
+```
+
+```{r}
+# check the use of "family"
+kwic_family <- kwic(Text_Data_Abstract_tokens,
+      pattern = c("famili"))
+head(kwic_family)
+
+kwic_family_data <- as.data.frame(kwic_family)
+kwic_family_data_count <- kwic_family_data %>% group_by(docname) %>% count()%>% plyr::arrange(n)
+
+summary_family <- kwic_family_data_count %>% group_by(n) %>% count()%>% mutate(total_number=as.numeric(nn)) %>% mutate(percentage= total_number/779) %>% mutate(number=as.numeric(n)) %>% select(-c(n,nn))
+
+sum(summary_family$total_number)
+
+head(summary_family)
+```
+
+```{r}
+ggplot(summary_family, aes(x=number, y= total_number, fill=number)) +
+   geom_bar(stat = "identity")+
+  ggthemes::theme_few()+
+  geom_text(aes(label = percent(percentage)), color = "black", size=3,position = position_dodge(width = .9) )+
+  scale_x_continuous(name="Times 'Family' appered in the document")+
+  scale_y_continuous(name="Count")+
+  scale_fill_continuous(name="Times")+
+  theme(axis.text.x = element_text(angle=90, hjust=1))+
+  labs(title = "Count For Frequency of Word Appeared")+
+  theme(plot.title = element_text(hjust=0.5))+
+  theme(legend.position = "bottom")
+```
+
+
+```{r}
+# check the use of "student"
+kwic_student <- kwic(Text_Data_Abstract_tokens,
+      pattern = phrase("colleg student"))
+head(kwic_student)
+```
+
+
+```{r}
+kwic_student_data <- as.data.frame(kwic_student)
+kwic_student_data_count <- kwic_student_data %>% group_by(docname) %>% count()%>% plyr::arrange(n)
+
+summary_student <- kwic_student_data_count %>% group_by(n) %>% count()%>% mutate(total_number=as.numeric(nn)) %>% mutate(percentage= total_number/490) %>% mutate(number=as.numeric(n)) %>% select(-c(n,nn))
+
+sum(summary_student$total_number)
+
+head(summary_student)
+```
+
+```{r}
+ggplot(summary_student, aes(x=number, y= total_number, fill=number)) +
+   geom_bar(stat = "identity")+
+  ggthemes::theme_few()+
+  geom_text(aes(label = percent(percentage)), color = "black", size=3,position = position_dodge(width = .9) )+
+  scale_x_continuous(name="Times 'College Student' appered in the document")+
+  scale_y_continuous(name="Count")+
+  scale_fill_continuous(name="Times")+
+  theme(axis.text.x = element_text(angle=90, hjust=1))+
+  labs(title = "Count For Frequency of Word Appeared")+
+  theme(plot.title = element_text(hjust=0.5))+
+  theme(legend.position = "bottom")
+```
+
+
+```{r}
+Text_Data_Subject_Term <- Text_Data%>% select(subjectTerms)
+
+Text_Data_Subject_Term_corpus<- corpus(Text_Data_Subject_Term, text_field = "subjectTerms" , meta = list(source = "From a data.frame called mydf."))
+
+# quanteda comes with a corpus of presidential inaugural speeches
+# this first line subsets that corpus to speeches later than 1953
+dfm_inaug <- corpus_subset(Text_Data_Subject_Term_corpus) %>%
+    # notice we are using the piping operator again.
+    # this time, we pipe the corpus to tokens then to DFM, which creates a document-feature matrix
+    tokens(remove_punct = TRUE,
+    remove_numbers = TRUE,
+    remove_symbols = TRUE) %>%
+    # in creating it
+    dfm() %>%
+    dfm_remove(stopwords('english')) %>%
+    dfm_trim(min_termfreq=20)
+
+textplot_wordcloud(dfm_inaug)
+```
+
+```{r}
+Text_Data_Subjects <- Text_Data%>% select(subjects)
+
+Text_Data_Subjects_corpus<- corpus(Text_Data_Subjects, text_field = "subjects" , meta = list(source = "From a data.frame called mydf."))
+
+# quanteda comes with a corpus of presidential inaugural speeches
+# this first line subsets that corpus to speeches later than 1953
+dfm_inaug <- corpus_subset(Text_Data_Subjects_corpus) %>%
+    # notice we are using the piping operator again.
+    # this time, we pipe the corpus to tokens then to DFM, which creates a document-feature matrix
+    tokens(remove_punct = TRUE,
+    remove_numbers = TRUE,
+    remove_symbols = TRUE) %>%
+    # in creating it
+    dfm()%>%
+    dfm_remove(stopwords('english')) %>%
+    dfm_trim(min_termfreq=10)
+
+textplot_wordcloud(dfm_inaug)
+```
+
+```{r}
+Text_Data_date_analysis<- Text_Data %>% select(year,documentType, pubtitle)
+
+summary_table_documentType <-Text_Data_date_analysis %>% group_by(documentType) %>% count() %>% mutate(percentage= n/802) %>% mutate(n=as.numeric(n))
+
+summary_table_documentType
+```
+
+```{r}
+ggplot(summary_table_documentType, aes(x=documentType, y= n, fill=documentType)) +
+   geom_bar(stat = "identity")+
+  ggthemes::theme_few()+
+  geom_text(aes(label = percent(percentage)), color = "black", size=3,position = position_dodge(width = .9) )+
+  scale_x_discrete(name="Document Types", labels = c("Book Review", "Commentary", "Dissertation Thesis","Evidence Based\nHealthcare\nJournal Article", "Feature", "General Information", "Journal Article", "Journal Article\nFeature", "News", "Review") )+
+  scale_y_continuous(name="Count", breaks = 10)+
+  scale_fill_discrete(name="Document Types")+
+  theme(axis.text.x = element_text(angle=90, hjust=1))+
+  labs(title = "Count For Document Types")+
+  theme(plot.title = element_text(hjust=0.5))+
+  theme(legend.position = "bottom")
+```
+
+```{r}
+summary_table_pubtitle <-Text_Data_date_analysis %>% group_by(pubtitle) %>% count() %>% mutate(percentage= n/802) %>%arrange(desc(n))
+
+head(summary_table_pubtitle)
+```
+
+```{r}
+summary_table_year <-Text_Data_date_analysis %>% group_by(year) %>% count()
+
+summary_table_year
+```
+
+```{r}
+ggplot(summary_table_year, aes(x=year, y= n)) +
+   geom_line()+
+  geom_point()+
+  ggthemes::theme_few()+
+  scale_x_continuous(n.break=10, name= "Year Number")+
+  scale_y_continuous(n.break=10,name="Count")+
+  geom_text(aes(label = n), position = "jitter")+
+  labs(title = "Trends For Number of Publications Over Time")+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+# Clustering & Scaling
+
+```{r}
+# load some text
+Text_Data_Abstract_corpus
+
+# tokenization and preprocessing
+tokens_clustering <- tokens(Text_Data_Abstract_corpus, remove_punct = TRUE, remove_numbers = TRUE, remove_symbols = TRUE)
+
+tokens_clustering <- tokens_select(tokens_clustering,
+pattern = stopwords("en"),
+selection = "remove")
+
+tokens_clustering <- tokens_tolower(tokens_clustering)
+
+# create our document-feature matrix
+dfm_clustering <- dfm(tokens_clustering)
+```
+
+
+```{r}
+# trim dfm
+dfm_trimmed_clustering <- dfm_trim(dfm_clustering , min_termfreq = 20, termfreq_type = "count", min_docfreq = 10, docfreq_type = "count")
+
+# convert to a matrix and scale for ease of computation
+dfm_matrix_clustering <- as.matrix(dfm_trimmed_clustering)
+scaled_matrix_clustering <- scale(dfm_matrix_clustering)
+
+# Optimal Clusters
+fviz_nbclust(scaled_matrix_clustering, kmeans, method = "wss") + 
+labs(title = "Elbow Method for Optimal Clusters")
+
+fviz_nbclust(scaled_matrix_clustering, kmeans, method = "silhouette") + 
+  labs(title = "Silhouette Method for Optimal Clusters")
+
+# Clustering
+set.seed(123)
+k_clusters <- 2
+kmeans_result_clustering <- kmeans(scaled_matrix_clustering, centers = k_clusters, nstart = 25)
+fviz_cluster(list(data = scaled_matrix_clustering, cluster = kmeans_result_clustering$cluster))
+
+fviz_cluster(kmeans_result_clustering, data = scaled_matrix_clustering, geom = "point", ellipse.type = "norm") +
+  labs(title = "K-Means Clustering of Abstracts")
+
+Text_Data$KMeans_Cluster <- kmeans_result_clustering$cluster
+
+head(Text_Data)
+
+head(Text_Data$KMeans_Cluster)
+```
+
+```{r}
+# hierarchical Clustering
+dist_matrix_clustering <- dist(scaled_matrix_clustering)
+hclust_result_clustering <- hclust(dist_matrix_clustering, method = "ward.D2")
+
+cluster_assignments_clustering <- data.frame(document = rownames(scaled_matrix_clustering),
+                                  cluster = kmeans_result_clustering$cluster)
+head(cluster_assignments_clustering)
+cluster_assignments_clustering %>% group_by(cluster) %>% count()
+```
+
+# Topic Model 
+
+```{r}
+# load some text
+Text_Data_Abstract_corpus
+
+# tokenization and preprocessing
+tokens_topic <- tokens(Text_Data_Abstract_corpus, remove_punct = TRUE, remove_numbers = TRUE, remove_symbols = TRUE)
+
+tokens_topic <- tokens_select(tokens_topic,
+pattern = stopwords("en"),
+selection = "remove")
+
+tokens_topic <- tokens_tolower(tokens_topic)
+
+# create our document-feature matrix
+dfm_topic <- dfm(tokens_topic)
+```
+
+
+```{r}
+differentKs <- searchK(dfm_topic,
+        K = c(5,25,50),
+        prevalence =~year,
+        N=250,
+        data = Text_Data,
+        max.em.its = 1000,
+        init.type = "Spectral")
+
+plot(differentKs)
+```
+
+```{r}
+cor_topic_model <- stm(dfm_topic, K = 25,
+                   verbose = FALSE, init.type = "Spectral")
+```
+
+```{r}
+labelTopics(cor_topic_model)
+```
+
+```{r}
+findThoughts(cor_topic_model,
+    texts = Text_Data$Abstract,
+    topics = c(1:25),
+    n = 1)
+```
+
+```{r}
+# choose our number of topics
+k <- 25
+
+# specify model
+myModel <- stm(dfm_topic,
+            K = k,
+            prevalence =~ year,
+            data = Text_Data,
+            max.em.its = 1000,
+            seed = 1234,
+            init.type = "Spectral")
+```
+
+```{r}
+labelTopics(myModel)
+```
+
+```{r}
+plot(myModel, type = "summary")
+```
+
+
+```{r}
+# get the words
+myTopicNames <- labelTopics(myModel, n=4)$frex
+
+# set up an empty vector
+myTopicLabels <- rep(NA, k)
+
+# set up a loop to go through the topics and collapse the words to a single name
+for (i in 1:k){
+	myTopicLabels[i] <- paste(myTopicNames[i,], collapse = "_")
+}
+
+# print the names
+myTopicLabels
+```
+
+```{r}
+# estimate effects
+modelEffects <- estimateEffect(formula=1:k~s(year),
+        stmobj = myModel,
+        metadata = Text_Data)
+
+# plot effects
+myRows <- 2
+par(mfrow=c(myRows,3), bty="n", lwd=2)
+for (i in 1:k){
+	plot.estimateEffect(modelEffects,
+        covariate ="year",
+        model = myModel,
+        topics = modelEffects$topics[i],
+        method = "continuous",
+        main = myTopicLabels[i],
+        printlegend=F,
+        linecol="grey26",
+        labeltype="custom",
+        verbose.labels=F,
+        custom.labels=c(""))
+	par(new=F)
+}
+```
+
+
+
+
+# Sentiment Analysis 
+
+```{r}
+s_v <- get_sentences(Text_Data_Abstract$Abstract[1])
+s_v_sentiment <- get_sentiment(s_v)
+mean(s_v_sentiment)
+plot(
+  s_v_sentiment, 
+  type="l", 
+  main="Example Plot Trajectory", 
+  xlab = "Narrative Time", 
+  ylab= "Emotional Valence"
+  )
+
+df <- data.frame(
+    AbstractID = 1,
+    SentenceID = seq(s_v),
+    SentimentScore = s_v_sentiment)
+
+s_v_2 <- get_sentences(Text_Data_Abstract$Abstract[2])
+s_v_sentiment_2 <- get_sentiment(s_v_2)
+df_2 <- data.frame(
+    AbstractID = 2,
+    SentenceID = seq(s_v_2),
+    SentimentScore = s_v_sentiment_2)
+
+df_list <- list(df, df_2)
+df_list 
+print(as.data.frame(do.call(rbind, df_list))) %>% head() 
+```
+
+
+```{r}
+sentiment_score <- list()
+
+for (i in seq(Text_Data_Abstract$Abstract)) {
+  sentences <- get_sentences(Text_Data_Abstract$Abstract[i])
+  sentiment <- get_sentiment(sentences)
+  
+  # Store as a data frame with abstract ID
+  df <- data.frame(
+    AbstractID = i,
+    SentenceID = seq(sentences),
+    SentimentScore = sentiment
+  )
+  
+  sentiment_score[[i]] <- df
+}
+
+# Combine all into one data frame
+sentiment_df <- print(as.data.frame(do.call(rbind, sentiment_score))) %>% head()  
+
+# View the first few rows
+head(sentiment_df)
+
+options(scipen=999)
+sentiment_score_mean <- sentiment_df %>% group_by(AbstractID) %>% summarise(mean=mean(SentimentScore))
+
+Text_Data$sentiment_score_mean <- sentiment_score_mean$mean  
+
+Text_Data %>% summarise(mean= mean(sentiment_score_mean),max=max(sentiment_score_mean), min=min(sentiment_score_mean))
+
+Sentiment_score_high <- Text_Data %>% filter(sentiment_score_mean==max(sentiment_score_mean))%>%select(Abstract)
+
+Sentiment_score_high[[1]]
+
+Sentiment_score_low <- Text_Data %>% filter(sentiment_score_mean==min(sentiment_score_mean))%>%select(Abstract)
+
+Sentiment_score_low[[1]]
+
+plot(
+  sentiment_score_mean, 
+  type="l", 
+  main="Sentiment Mean Score Plot Trajectory", 
+  xlab = "Text number lable", 
+  ylab= "Emotional Valence") %>% abline(h=1.04054,col = "red" )
+```
+
+
